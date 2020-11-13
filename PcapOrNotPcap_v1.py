@@ -31,7 +31,18 @@ def Helper():
 
 
 def ExportResult(lIcmp, lUdp, lMac, lPort, lIP, d, exe):
+	"""
+		Function to export all information recorded by the parsing
+		:param lIcmp:	Data from ICMP
+		:param lUdp:	Data from UDP
+		:param lMac:	Data from Ether
+		:param lPort:	Data from TCP
+		:param lIP:		Data from IP
+		:param d:		Data from ... Data (Raw layer)
+		:param exe:		Data from extracted PE
+	"""
 	try:
+		# open in append mode to add without delete the other lines
 		with open('ImParsed.txt', 'a') as fl:
 			fl.writelines('------------------------------------------------------\n')
 			if lIP != None:
@@ -65,6 +76,11 @@ def ExportResult(lIcmp, lUdp, lMac, lPort, lIP, d, exe):
 
 
 def ParseUDP(pkt):
+	"""
+		Function to parse and record the UDP src and dst port
+		:param pkt:		The packet to parse
+		:return:		Tuple of src and dst port
+	"""
 	try:
 		try:
 			return ('UDP Port SRC: %s\n' %(pkt[UDP].sport), 'UDP Port DST: %s\n' %(plt[UDP].dport))
@@ -77,6 +93,12 @@ def ParseUDP(pkt):
 
 
 def ParseICMP(pkt):
+	"""
+		Function to parse the layer ICMP and record the lenght and addr_mask
+		Can be used to find a date encapsulate in icmp
+		:param pkt:		The packet to parse
+		:return:		Tupe of ICMP lenght and ICMP address mask
+	"""
 	try:
 		try:
 			return ('ICMP Lenght: %s\n' %(pkt[ICMP].lenght), 'ICMP ADDR_Mask: %s\n' %(pkt[ICMP].addr_mask))
@@ -88,6 +110,11 @@ def ParseICMP(pkt):
 
 
 def ParseIP(pkt):
+	"""
+		Function to parse layer IP and record the src and dst IP
+		:param pkt: 	The packet to parse
+		:return:		Tuple of src and dst IP
+	"""
 	try:
 		try:
 			return ('IP SRC: %s\n' %(pkt[IP].src), 'IP DST: %s\n' %(pkt[IP].dst))
@@ -100,6 +127,11 @@ def ParseIP(pkt):
 
 
 def ParsePorts(pkt):
+	"""
+		Function to parse the layer TCP and record the src port and dst port
+		:param pkt:		The packet to parse
+		:return:		Tuple of src port and dst port
+	"""
 	try:
 		try:
 			return ('TCP Port SRC: %s\n' %(pkt[TCP].sport), 'TCP Port DST: %s\n' %(pkt[TCP].dport))
@@ -112,6 +144,11 @@ def ParsePorts(pkt):
 
 
 def ParseMac(pkt):
+	"""
+		Function to parse the Ether layer and record the mac src and dst
+		:param pkt:		The packet to parse
+		:return:		Tuple of src mac and dst mac
+	"""
 	try:
 		try:
 			return ('MAC SRC: %s\n' %(pkt[Ether].src), 'MAC DST: %s\n' %(pkt[ETHER].dst))
@@ -124,6 +161,11 @@ def ParseMac(pkt):
 
 
 def ParseData(pkt):
+	"""
+		Function to parse the data and decode this
+		:param pkt:		packet to parse
+		:return:		The decoded data
+	"""
 	try:
 		try:
 			return 'Data :\n%s\n' % (str(unhexlify(b"".join(findall(b'..', hexlify(bytes(pkt.getlayer(Raw))))).decode('utf-8')))[2:-1])
@@ -134,20 +176,35 @@ def ParseData(pkt):
 	except Exception as e:
 		print('\t\t\t[!] %s' %(e))
 
+
 def ParseExe(pkt):
+	"""
+		Function to parse the data if present and if 'MZ' is find
+		Extract then the PE to an output dir.
+		:param pkt:		packet to parse
+		:return:		String to add in export file, no return if no PE
+	"""
 	try:
 		try:
+			# record the data decoded in string
 			df = str(unhexlify(b"".join(findall(b'..', hexlify(bytes(pkt.getlayer(Raw))))).decode('utf-8')))
+			# create the path for the output dir
 			outdir = '%s\\output\\' %(getcwd())
 
+			# if MZ present in data then extract the PE
 			if df.find('MZ') != -1:
+				# check if the output dir is present or not else create the folder
 				if 'output' not in listdir(getcwd()):
 					mkdir(outdir)
-				
+
+				# list the file present in output dir
 				flo = listdir(outdir)
+				# open in write bytes mode the extracted PE
 				with open('%s\\%s.exe' %(outdir, len(flo)+1), 'wb') as ExeF:
+					# write the hexadecimal data in file
 					ExeF.write(b"".join(findall(b'..', hexlify(bytes(pkt.getlayer(Raw))))).decode('utf-8'))
 
+				# return a string to prevent the user in exported file
 				return 'Executable Exported in %s\\%s.exe' %(outdir, len(flo)+1) 
 
 		except:
@@ -158,12 +215,21 @@ def ParseExe(pkt):
 
 
 def ZippedExe():
+	"""
+		Zip with password the extracted PE
+		and delete the folder output and PE.
+	"""
+	# create zip object in write mode
 	zf = ZipFile('output.zip', mode='w', compression=ZIP_DEFLATED)
+
+	# iter in all PE to add it in zip file
 	for f in listdir('%s\\output' %(getcwd())):
 		zf.write('%s\\output\\%s' %(getcwd(), f))
 
+	# set the password for the zip
 	zf.setpassword(b"infected")
 
+	# remove the output folder
 	rmtree('%s\\output' %(getcwd()))
 
 
@@ -202,31 +268,41 @@ if __name__ == '__main__':
 			# init pe var
 			pe = ""
 
-			for p in pcaps:
-				if '-h' in argv:
-					Helper()
+			# if -h present in argv then go to helper
+			if '-h' in argv:
+				Helper()
 
+			# iter in all packet present in pcap
+			for p in pcaps:
+				# go to parse layer ip to record ip src dst
 				if '-ip' in argv:
 					tpIP = ParseIP(p)
-					
+
+				# go to parse layer TCP to record the port src dst
 				if '-p' in argv:
 					tpPort = ParsePorts(p)
-					
+
+				# go to parse layer Ether to record the mac src dst
 				if '-m' in argv:
 					tpMac = ParseMac(p)
-					
+
+				# go to record the data
 				if '-d' in argv:
-					 datas = ParseData(p)
-					 
+					datas = ParseData(p)
+
+				# go to parse layer udp to record the port src dst
 				if '-u' in argv:
 					tpUdp = ParseUDP(p)
-					
+
+				# go to parse layer ICMP to record the lenght and the mask address
 				if '-ic' in argv:
 					tpIcmp = ParseICMP(p)
 
+				# go to parse the data to extract the PE if present
 				if '-e' in argv:
 					pe = ParseExe(p)
-					
+
+				# all parsing
 				if '-a' in argv:
 					tpIP = ParseIP(p)
 					tpPort = ParsePorts(p)
@@ -236,8 +312,10 @@ if __name__ == '__main__':
 					tpIcmp = ParseICMP(p)
 					pe = ParseExe(p)
 
+				# Export the result in txt file
 				ExportResult(tpIcmp, tpUdp, tpMac, tpPort, tpIP, datas, pe)
 
+			# check if output di is present to zip that
 			if 'output' in listdir(getcwd()):
 				ZippedExe()
 
